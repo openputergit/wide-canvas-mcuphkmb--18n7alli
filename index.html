@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShopSmart - Smart E-commerce Platform</title>
+    <script src="https://js.stripe.com/v3/"></script>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+        @media (max-width: 640px) {
+            .product-grid {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <span class="text-2xl font-bold text-blue-600">ShopSmart</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="cartBtn" class="relative p-2">
+                        <i class="bi bi-cart text-xl"></i>
+                        <span id="cartCount" class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center">0</span>
+                    </button>
+                    <button id="adminBtn" class="bg-blue-600 text-white px-4 py-2 rounded-md">Admin</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Filters -->
+        <div class="mb-8 flex flex-wrap gap-4">
+            <select id="categoryFilter" class="border rounded-md px-3 py-2">
+                <option value="">All Categories</option>
+                <option value="clothing">Clothing</option>
+                <option value="gadgets">Gadgets</option>
+                <option value="decor">Home Décor</option>
+            </select>
+            <select id="priceFilter" class="border rounded-md px-3 py-2">
+                <option value="">Price Range</option>
+                <option value="0-50">$0 - $50</option>
+                <option value="51-100">$51 - $100</option>
+                <option value="101+">$101+</option>
+            </select>
+            <input type="text" id="searchInput" placeholder="Search products..." class="border rounded-md px-3 py-2">
+        </div>
+
+        <!-- Products Grid -->
+        <div id="productsGrid" class="product-grid mb-8"></div>
+
+        <!-- WhatsApp Cart -->
+        <div id="whatsappCart" class="fixed bottom-4 right-4 bg-green-500 text-white p-4 rounded-lg shadow-lg cursor-pointer">
+            <i class="bi bi-whatsapp text-2xl"></i>
+        </div>
+    </main>
+
+    <!-- Admin Panel Modal -->
+    <div id="adminModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-medium">Admin Dashboard</h3>
+                <button id="closeAdmin" class="text-gray-400 hover:text-gray-500"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div class="bg-gray-100 p-4 rounded">
+                    <h4 class="font-medium">Total Sales</h4>
+                    <p class="text-2xl font-bold">$1,234</p>
+                </div>
+                <div class="bg-gray-100 p-4 rounded">
+                    <h4 class="font-medium">Inventory Status</h4>
+                    <p>15 products low in stock</p>
+                </div>
+                <div>
+                    <h4 class="font-medium mb-2">Active Coupons</h4>
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center bg-gray-50 p-2 rounded">
+                            <span>SUMMER20</span>
+                            <span>20% off</span>
+                        </div>
+                        <div class="flex justify-between items-center bg-gray-50 p-2 rounded">
+                            <span>FREESHIP</span>
+                            <span>Free Shipping</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sample product data
+        const products = [
+            { id: 1, name: 'Classic T-Shirt', price: 29.99, category: 'clothing', image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500' },
+            { id: 2, name: 'Smart Watch', price: 199.99, category: 'gadgets', image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500' },
+            { id: 3, name: 'Table Lamp', price: 49.99, category: 'decor', image: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=500' },
+            // Add more products as needed
+        ];
+
+        let cart = [];
+
+        // Render products
+        function renderProducts(filteredProducts = products) {
+            const grid = document.getElementById('productsGrid');
+            grid.innerHTML = filteredProducts.map(product => `
+                <div class="bg-white p-4 rounded-lg shadow">
+                    <img src="${product.image}" alt="${product.name}" class="w-full h-48 object-cover rounded-md mb-4">
+                    <h3 class="font-medium">${product.name}</h3>
+                    <p class="text-gray-600">$${product.price}</p>
+                    <button onclick="addToCart(${product.id})" class="mt-2 bg-blue-600 text-white px-4 py-2 rounded-md w-full">
+                        Add to Cart
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        // Cart functionality
+        function addToCart(productId) {
+            const product = products.find(p => p.id === productId);
+            cart.push(product);
+            updateCartCount();
+        }
+
+        function updateCartCount() {
+            document.getElementById('cartCount').textContent = cart.length;
+        }
+
+        // Filter functionality
+        document.getElementById('categoryFilter').addEventListener('change', filterProducts);
+        document.getElementById('priceFilter').addEventListener('change', filterProducts);
+        document.getElementById('searchInput').addEventListener('input', filterProducts);
+
+        function filterProducts() {
+            let filtered = [...products];
+            const category = document.getElementById('categoryFilter').value;
+            const priceRange = document.getElementById('priceFilter').value;
+            const search = document.getElementById('searchInput').value.toLowerCase();
+
+            if (category) {
+                filtered = filtered.filter(p => p.category === category);
+            }
+
+            if (priceRange) {
+                const [min, max] = priceRange.split('-').map(Number);
+                filtered = filtered.filter(p => {
+                    if (max) {
+                        return p.price >= min && p.price <= max;
+                    }
+                    return p.price >= min;
+                });
+            }
+
+            if (search) {
+                filtered = filtered.filter(p => 
+                    p.name.toLowerCase().includes(search) ||
+                    p.category.toLowerCase().includes(search)
+                );
+            }
+
+            renderProducts(filtered);
+        }
+
+        // Admin Panel
+        document.getElementById('adminBtn').addEventListener('click', () => {
+            document.getElementById('adminModal').classList.remove('hidden');
+        });
+
+        document.getElementById('closeAdmin').addEventListener('click', () => {
+            document.getElementById('adminModal').classList.add('hidden');
+        });
+
+        // WhatsApp Cart
+        document.getElementById('whatsappCart').addEventListener('click', () => {
+            const cartItems = cart.map(item => `${item.name} - $${item.price}`).join('\n');
+            const total = cart.reduce((sum, item) => sum + item.price, 0);
+            const message = `New Order:\n${cartItems}\n\nTotal: $${total.toFixed(2)}`;
+            window.open(`https://wa.me/?text=${encodeURIComponent(message)}`);
+        });
+
+        // Initialize
+        renderProducts();
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
